@@ -2,13 +2,13 @@
 #define SMALLFUNCTION_SMALLFUNCTION_HPP
 
 #include <type_traits>
+#include <cinttypes>
 
 namespace smallfun {
 
 
 template<class ReturnType, class...Xs>
 struct SFConcept {
-  virtual ReturnType operator()(Xs...)const = 0;
   virtual ReturnType operator()(Xs...) = 0;
   virtual void copy(void*)const = 0;
   virtual ~SFConcept() {};
@@ -27,10 +27,6 @@ struct SFModel final
     new (memory) SFModel<F, ReturnType, Xs...>(f);
   }
 
-  virtual ReturnType operator()(Xs...xs)const {
-    return f(xs...);
-  }
-
   virtual ReturnType operator()(Xs...xs) {
     return f(xs...);
   }
@@ -44,7 +40,7 @@ template<class Signature, unsigned size=128>
 struct SmallFun;
 
 template<class ReturnType, class...Xs, unsigned size>
-class SmallFun<ReturnType(Xs...), size> {
+class alignas(std::intptr_t) SmallFun<ReturnType(Xs...), size> {
   char memory[size];
 
   bool allocated = 0;
@@ -55,24 +51,23 @@ public:
   template<class F,
     std::enable_if_t<(sizeof(SFModel<F, ReturnType, Xs...>)<=size), bool> = 0 >
   SmallFun(F const&f)
-    : allocated(sizeof(SFModel<F, ReturnType, Xs...>)) {
+    : allocated(sizeof(SFModel<F, ReturnType, Xs...>))
+  {
+    static_assert(sizeof(SFModel<F, ReturnType, Xs...>) <= size);
     new (memory) SFModel<F, ReturnType, Xs...>(f);
   }
 
-  template<unsigned s,
-    std::enable_if_t<(s <= size), bool> = 0>
-  SmallFun(SmallFun<ReturnType(Xs...), s> const& sf)
+  SmallFun(SmallFun const& sf)
     : allocated(sf.allocated) {
     sf.copy(memory);
   }
 
 
-  template<unsigned s,
-    std::enable_if_t<(s <= size), bool> = 0>
-  SmallFun& operator=(SmallFun<ReturnType(Xs...), s> const& sf) {
+  SmallFun& operator=(SmallFun const& sf) {
     clean();
     allocated = sf.allocated;
     sf.copy(memory);
+    return *this;
   }
 
   void clean() {
@@ -94,7 +89,7 @@ public:
   }
 
   template<class...Ys>
-  ReturnType operator()(Ys&&...ys)const {
+  ReturnType operator()(Ys&&...ys) const {
     return (*(concept*)memory)(std::forward<Ys>(ys)...);
   }
 
