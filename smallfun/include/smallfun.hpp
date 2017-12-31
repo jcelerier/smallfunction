@@ -7,18 +7,18 @@
 
 namespace smallfun
 {
-template<class Signature, std::size_t Size = 128>
+template<class Signature, std::size_t Size = 128, std::size_t Align = sizeof(std::intptr_t)>
 struct function;
 
-template<class R, class...Xs, std::size_t Size>
-class alignas(std::intptr_t) function<R(Xs...), Size>
+template<class R, class...Xs, std::size_t Size, std::size_t Align>
+class function<R(Xs...), Size, Align>
 {
   using call_operator = R(*)(void* self, Xs...);
   using copy_operator = void(*)(void* self, void*);
   using dest_operator = void(*)(void* self);
 
   call_operator vtbl_call;
-  char m_memory[Size];
+  alignas(Align) char m_memory[Size];
   copy_operator vtbl_copy;
   dest_operator vtbl_dest;
   bool m_allocated{};
@@ -30,6 +30,7 @@ public:
   function(F f)
     : m_allocated{true}
   {
+    static_assert(alignof(F) <= alignof(std::intptr_t), "alignment must be increased");
     static_assert(sizeof(F) <= Size, "argument too large for SmallFun");
     new (m_memory) F{std::forward<F>(f)};
     vtbl_copy = [] (void* self, void* memory)
