@@ -30,7 +30,7 @@ public:
   function(F f)
     : m_allocated{true}
   {
-    static_assert(alignof(F) <= alignof(std::intptr_t), "alignment must be increased");
+    static_assert(alignof(F) <= Align, "alignment must be increased");
     static_assert(sizeof(F) <= Size, "argument too large for SmallFun");
     new (m_memory) F{std::forward<F>(f)};
     vtbl_copy = [] (void* self, void* memory)
