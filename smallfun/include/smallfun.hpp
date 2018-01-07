@@ -7,7 +7,11 @@
 
 namespace smallfun
 {
+#if defined(__EMSCRIPTEN__)
+template<class Signature, std::size_t Size = 128, std::size_t Align = 2 * sizeof(std::intptr_t)>
+#else
 template<class Signature, std::size_t Size = 128, std::size_t Align = sizeof(std::intptr_t)>
+#endif
 struct function;
 
 template<class R, class...Xs, std::size_t Size, std::size_t Align>
