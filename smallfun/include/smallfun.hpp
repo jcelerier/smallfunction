@@ -12,7 +12,7 @@ template<class Signature, std::size_t Size = 64, std::size_t Align = 2 * sizeof(
 #else
 template<class Signature, std::size_t Size = 64, std::size_t Align = sizeof(std::intptr_t)>
 #endif
-struct function;
+class function;
 
 template<class R, class...Xs, std::size_t Size, std::size_t Align>
 class function<R(Xs...), Size, Align>
