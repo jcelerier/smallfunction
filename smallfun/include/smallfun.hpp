@@ -55,19 +55,19 @@ public:
   function(function<Args...>&& sf) = delete;
 
   function(function&& sf)
-    : vtbl_call(sf.vtbl_call)
-    , vtbl_copy(sf.vtbl_copy)
-    , vtbl_dest(sf.vtbl_dest)
-    , m_allocated(sf.m_allocated)
+    : vtbl_call{sf.vtbl_call}
+    , vtbl_copy{sf.vtbl_copy}
+    , vtbl_dest{sf.vtbl_dest}
+    , m_allocated{sf.m_allocated}
   {
     sf.copy(m_memory);
   }
 
   function(const function& sf)
-    : vtbl_call(sf.vtbl_call)
-    , vtbl_copy(sf.vtbl_copy)
-    , vtbl_dest(sf.vtbl_dest)
-    , m_allocated(sf.m_allocated)
+    : vtbl_call{sf.vtbl_call}
+    , vtbl_copy{sf.vtbl_copy}
+    , vtbl_dest{sf.vtbl_dest}
+    , m_allocated{sf.m_allocated}
   {
     sf.copy(m_memory);
   }
