@@ -52,10 +52,7 @@ public:
   }
 
   template<typename... Args>
-  function(function<Args...>&& sf)
-  {
-    static_assert(std::is_same<decltype(sf), void>::value, "");
-  }
+  function(function<Args...>&& sf) = delete;
 
   function(function&& sf)
     : vtbl_call(sf.vtbl_call)
