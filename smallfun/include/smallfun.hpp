@@ -11,11 +11,8 @@ enum class Methods
 {
   Copy, Move, Both
 };
-#if defined(__EMSCRIPTEN__)
-template<class Signature, std::size_t Size = 64, std::size_t Align = 2 * sizeof(std::intptr_t), Methods methods = Methods::Copy>
-#else
-template<class Signature, std::size_t Size = 64, std::size_t Align = sizeof(std::intptr_t), Methods methods = Methods::Copy>
-#endif
+
+template<class Signature, std::size_t Size = 64, std::size_t Align = std::max(alignof(std::intptr_t), alignof(double)), Methods methods = Methods::Copy>
 class function;
 
 
