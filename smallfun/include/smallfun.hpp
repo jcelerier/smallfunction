@@ -73,7 +73,8 @@ public:
     , vtbl_copy{sf.vtbl_copy}
     , vtbl_dest{sf.vtbl_dest}
   {
-    sf.copy(m_memory);
+    if(allocated())
+      sf.copy(m_memory);
   }
 
   function(const function& sf)
@@ -81,7 +82,8 @@ public:
     , vtbl_copy{sf.vtbl_copy}
     , vtbl_dest{sf.vtbl_dest}
   {
-    sf.copy(m_memory);
+    if(allocated())
+      sf.copy(m_memory);
   }
 
   function& operator=(const function& sf)
@@ -90,7 +92,8 @@ public:
     vtbl_call = sf.vtbl_call;
     vtbl_copy = sf.vtbl_copy;
     vtbl_dest = sf.vtbl_dest;
-    sf.copy(m_memory);
+    if(allocated())
+      sf.copy(m_memory);
     return *this;
   }
 
@@ -114,6 +117,7 @@ public:
     return vtbl_call((void*)m_memory, std::forward<Ys>(ys)...);
   }
 
+  bool allocated() const noexcept { return bool(vtbl_call); }
 private:
   void clean()
   {
@@ -136,8 +140,6 @@ private:
   {
     return vtbl_dest((void*)m_memory);
   }
-
-  bool allocated() const noexcept { return bool(vtbl_call); }
 };
 
 
@@ -187,7 +189,8 @@ public:
     , vtbl_move{sf.vtbl_move}
     , vtbl_dest{sf.vtbl_dest}
   {
-    sf.move(m_memory);
+    if(allocated())
+      sf.move(m_memory);
   }
 
   function(const function&& sf) = delete;
@@ -199,7 +202,9 @@ public:
     vtbl_call = sf.vtbl_call;
     vtbl_move = sf.vtbl_move;
     vtbl_dest = sf.vtbl_dest;
-    sf.move(m_memory);
+
+    if(allocated())
+      sf.move(m_memory);
     return *this;
   }
 
@@ -223,6 +228,7 @@ public:
     return vtbl_call((void*)m_memory, std::forward<Ys>(ys)...);
   }
 
+  bool allocated() const noexcept { return bool(vtbl_call); }
 private:
   void clean()
   {
@@ -233,11 +239,13 @@ private:
     }
   }
 
-  void move(void* data) const
+  void move(void* data)
   {
     if (allocated())
     {
-      return vtbl_move((void*)m_memory, data);
+      vtbl_move((void*)m_memory, data);
+      destruct();
+      vtbl_call = nullptr;
     }
   }
 
@@ -245,8 +253,6 @@ private:
   {
     return vtbl_dest((void*)m_memory);
   }
-
-  bool allocated() const noexcept { return bool(vtbl_call); }
 };
 
 template<class R, class...Xs, std::size_t Size, std::size_t Align>
@@ -302,7 +308,8 @@ public:
     , vtbl_move{sf.vtbl_move}
     , vtbl_dest{sf.vtbl_dest}
   {
-    sf.copy(m_memory);
+    if(allocated())
+      sf.copy(m_memory);
   }
 
   function(function&& sf)
@@ -311,7 +318,8 @@ public:
     , vtbl_move{sf.vtbl_move}
     , vtbl_dest{sf.vtbl_dest}
   {
-    sf.move(m_memory);
+    if(allocated())
+      sf.move(m_memory);
   }
 
   function& operator=(const function& sf)
@@ -321,7 +329,9 @@ public:
     vtbl_copy = sf.vtbl_copy;
     vtbl_move = sf.vtbl_move;
     vtbl_dest = sf.vtbl_dest;
-    sf.copy(m_memory);
+
+    if(allocated())
+      sf.copy(m_memory);
     return *this;
   }
 
@@ -332,7 +342,9 @@ public:
     vtbl_copy = sf.vtbl_copy;
     vtbl_move = sf.vtbl_move;
     vtbl_dest = sf.vtbl_dest;
-    sf.move(m_memory);
+
+    if(allocated())
+      sf.move(m_memory);
     return *this;
   }
 
@@ -356,6 +368,8 @@ public:
     return vtbl_call((void*)m_memory, std::forward<Ys>(ys)...);
   }
 
+  bool allocated() const noexcept { return bool(vtbl_call); }
+
 private:
   void clean()
   {
@@ -374,11 +388,13 @@ private:
     }
   }
 
-  void move(void* data) const
+  void move(void* data)
   {
     if (allocated())
     {
-      return vtbl_move((void*)m_memory, data);
+      vtbl_move((void*)m_memory, data);
+      destruct();
+      vtbl_call = nullptr;
     }
   }
 
@@ -387,7 +403,6 @@ private:
     return vtbl_dest((void*)m_memory);
   }
 
-  bool allocated() const noexcept { return bool(vtbl_call); }
 };
 
 }
