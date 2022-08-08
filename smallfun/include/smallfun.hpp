@@ -4,6 +4,23 @@
 #include <type_traits>
 #include <cinttypes>
 #include <utility>
+#include <cmath>
+
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer) || __has_feature(memory_sanitizer)
+#define SMALLFUN_SIZE_MULTIPLIER 3
+#endif
+#endif
+
+#if !defined(SMALLFUN_SIZE_MULTIPLIER)
+#if __SANITIZE_ADDRESS__ || __SANITIZE_MEMORY__
+#define SMALLFUN_SIZE_MULTIPLIER 3
+#endif
+#endif
+
+#if !defined(SMALLFUN_SIZE_MULTIPLIER)
+#define SMALLFUN_SIZE_MULTIPLIER 1
+#endif
 
 namespace smallfun
 {
@@ -30,20 +47,20 @@ class function<R(Xs...), Size, Align, Methods::Copy>
   using dest_operator = void(*)(void* self);
 
   call_operator vtbl_call{};
-  alignas(Align) char m_memory[Size];
+  alignas(Align) char m_memory[Size * SMALLFUN_SIZE_MULTIPLIER];
   copy_operator vtbl_copy;
   dest_operator vtbl_dest;
 
 public:
-  function() = default;
+  function() noexcept = default;
 
   template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
-  function(F&& f)
+  function(F&& f) noexcept(std::is_nothrow_move_constructible_v<std::decay_t<F>>)
   {
     using T = std::remove_cv_t<std::remove_reference_t<F>>;
 
     static_assert(alignof(T) <= Align, "alignment must be increased");
-    static_assert(sizeof(T) <= Size, "argument too large for SmallFun");
+    static_assert(sizeof(T) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
     new (m_memory) T{std::forward<F>(f)};
     vtbl_copy = [] (void* self, void* memory)
     {
@@ -68,15 +85,6 @@ public:
   template<class R2, class...Xs2, std::size_t Sz, std::size_t Al, Methods M>
   function(function<R2(Xs2...), Sz, Al, M>&& sf) = delete;
 
-  function(function&& sf)
-    : vtbl_call{sf.vtbl_call}
-    , vtbl_copy{sf.vtbl_copy}
-    , vtbl_dest{sf.vtbl_dest}
-  {
-    if(allocated())
-      sf.copy(m_memory);
-  }
-
   function(const function& sf)
     : vtbl_call{sf.vtbl_call}
     , vtbl_copy{sf.vtbl_copy}
@@ -86,6 +94,8 @@ public:
       sf.copy(m_memory);
   }
 
+  function(function&& sf): function{sf} { }
+
   function& operator=(const function& sf)
   {
     clean();
@@ -94,6 +104,32 @@ public:
     vtbl_dest = sf.vtbl_dest;
     if(allocated())
       sf.copy(m_memory);
+    return *this;
+  }
+
+  template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
+  function& operator=(F&& f) noexcept(std::is_nothrow_move_constructible_v<std::decay_t<F>>)
+  {
+    clean();
+
+    using T = std::remove_cv_t<std::remove_reference_t<F>>;
+
+    static_assert(alignof(T) <= Align, "alignment must be increased");
+    static_assert(sizeof(T) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
+    new (m_memory) T{std::forward<F>(f)};
+    vtbl_copy = [] (void* self, void* memory)
+    {
+      new (memory) T{*reinterpret_cast<T*>(self)};
+    };
+    vtbl_call = [] (void* self, Xs... xs) -> R
+    {
+      return (*reinterpret_cast<T*>(self))(xs...);
+    };
+    vtbl_dest = [] (void* self) noexcept
+    {
+      (*reinterpret_cast<T*>(self)).~T();
+    };
+
     return *this;
   }
 
@@ -119,7 +155,7 @@ public:
 
   bool allocated() const noexcept { return bool(vtbl_call); }
 private:
-  void clean()
+  void clean() noexcept
   {
     if (allocated())
     {
@@ -136,7 +172,7 @@ private:
     }
   }
 
-  void destruct()
+  void destruct() noexcept
   {
     return vtbl_dest((void*)m_memory);
   }
@@ -151,21 +187,22 @@ class function<R(Xs...), Size, Align, Methods::Move>
   using dest_operator = void(*)(void* self);
 
   call_operator vtbl_call{};
-  alignas(Align) char m_memory[Size];
+  alignas(Align) char m_memory[Size * SMALLFUN_SIZE_MULTIPLIER];
   move_operator vtbl_move;
   dest_operator vtbl_dest;
 
 public:
-  function() = default;
+  function() noexcept = default;
 
   template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
-  function(F&& f)
+  function(F&& f) noexcept
   {
     using T = std::remove_cv_t<std::remove_reference_t<F>>;
+    static_assert(std::is_nothrow_move_constructible_v<std::decay_t<F>>, "Move-only version expects noexcept");
     static_assert(alignof(T) <= Align, "alignment must be increased");
-    static_assert(sizeof(T) <= Size, "argument too large for SmallFun");
+    static_assert(sizeof(T) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
     new (m_memory) T{std::forward<F>(f)};
-    vtbl_move = [] (void* self, void* memory)
+    vtbl_move = [] (void* self, void* memory) noexcept
     {
       new (memory) T{std::move(*reinterpret_cast<T*>(self))};
     };
@@ -173,7 +210,7 @@ public:
     {
       return (*reinterpret_cast<F*>(self))(xs...);
     };
-    vtbl_dest = [] (void* self)
+    vtbl_dest = [] (void* self) noexcept
     {
       (*reinterpret_cast<T*>(self)).~T();
     };
@@ -184,7 +221,7 @@ public:
   template<class S, std::size_t Sz, std::size_t Al, Methods M>
   function(function<S, Sz, Al, M>&& sf) = delete;
 
-  function(function&& sf)
+  function(function&& sf) noexcept
     : vtbl_call{sf.vtbl_call}
     , vtbl_move{sf.vtbl_move}
     , vtbl_dest{sf.vtbl_dest}
@@ -195,8 +232,7 @@ public:
 
   function(const function&& sf) = delete;
   function& operator=(const function& sf) = delete;
-
-  function& operator=(function&& sf)
+  function& operator=(function&& sf) noexcept
   {
     clean();
     vtbl_call = sf.vtbl_call;
@@ -205,6 +241,32 @@ public:
 
     if(allocated())
       sf.move(m_memory);
+    return *this;
+  }
+
+  template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
+  function& operator=(F&& f) noexcept
+  {
+    clean();
+
+    using T = std::remove_cv_t<std::remove_reference_t<F>>;
+    static_assert(std::is_nothrow_move_constructible_v<std::decay_t<F>>, "Move-only version expects noexcept");
+    static_assert(alignof(T) <= Align, "alignment must be increased");
+    static_assert(sizeof(T) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
+    new (m_memory) T{std::forward<F>(f)};
+    vtbl_move = [] (void* self, void* memory) noexcept
+    {
+      new (memory) T{std::move(*reinterpret_cast<T*>(self))};
+    };
+    vtbl_call = [] (void* self, Xs... xs) -> R
+    {
+      return (*reinterpret_cast<F*>(self))(xs...);
+    };
+    vtbl_dest = [] (void* self) noexcept
+    {
+      (*reinterpret_cast<T*>(self)).~T();
+    };
+
     return *this;
   }
 
@@ -230,7 +292,7 @@ public:
 
   bool allocated() const noexcept { return bool(vtbl_call); }
 private:
-  void clean()
+  void clean() noexcept
   {
     if (allocated())
     {
@@ -239,7 +301,7 @@ private:
     }
   }
 
-  void move(void* data)
+  void move(void* data) noexcept
   {
     if (allocated())
     {
@@ -249,7 +311,7 @@ private:
     }
   }
 
-  void destruct()
+  void destruct() noexcept
   {
     return vtbl_dest((void*)m_memory);
   }
@@ -264,20 +326,20 @@ class function<R(Xs...), Size, Align, Methods::Both>
   using dest_operator = void(*)(void* self);
 
   call_operator vtbl_call{};
-  alignas(Align) char m_memory[Size];
+  alignas(Align) char m_memory[Size * SMALLFUN_SIZE_MULTIPLIER];
   copy_operator vtbl_copy;
   move_operator vtbl_move;
   dest_operator vtbl_dest;
 
 public:
-  function() = default;
+  function() noexcept = default;
 
   template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
-  function(F&& f)
+  function(F&& f) noexcept(std::is_nothrow_move_constructible_v<std::decay_t<F>>)
   {
     using T = std::remove_cv_t<std::remove_reference_t<F>>;
     static_assert(alignof(T) <= Align, "alignment must be increased");
-    static_assert(sizeof(T) <= Size, "argument too large for SmallFun");
+    static_assert(sizeof(T) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
     new (m_memory) T{std::forward<F>(f)};
     vtbl_copy = [] (void* self, void* memory)
     {
@@ -291,7 +353,7 @@ public:
     {
       return (*reinterpret_cast<F*>(self))(xs...);
     };
-    vtbl_dest = [] (void* self)
+    vtbl_dest = [] (void* self) noexcept
     {
       (*reinterpret_cast<T*>(self)).~T();
     };
@@ -348,6 +410,36 @@ public:
     return *this;
   }
 
+  template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
+  function& operator=(F&& f) noexcept(std::is_nothrow_move_constructible_v<std::decay_t<F>>)
+  {
+    clean();
+
+    using T = std::remove_cv_t<std::remove_reference_t<F>>;
+
+    static_assert(alignof(T) <= Align, "alignment must be increased");
+    static_assert(sizeof(T) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
+    new (m_memory) T{std::forward<F>(f)};
+    vtbl_copy = [] (void* self, void* memory)
+    {
+      new (memory) T{*reinterpret_cast<T*>(self)};
+    };
+    vtbl_move = [] (void* self, void* memory)
+    {
+      new (memory) T{std::move(*reinterpret_cast<T*>(self))};
+    };
+    vtbl_call = [] (void* self, Xs... xs) -> R
+    {
+      return (*reinterpret_cast<T*>(self))(xs...);
+    };
+    vtbl_dest = [] (void* self) noexcept
+    {
+      (*reinterpret_cast<T*>(self)).~T();
+    };
+
+    return *this;
+  }
+
   ~function()
   {
     if (allocated())
@@ -371,7 +463,7 @@ public:
   bool allocated() const noexcept { return bool(vtbl_call); }
 
 private:
-  void clean()
+  void clean() noexcept
   {
     if (allocated())
     {
@@ -398,11 +490,10 @@ private:
     }
   }
 
-  void destruct()
+  void destruct() noexcept
   {
     return vtbl_dest((void*)m_memory);
   }
-
 };
 
 }
