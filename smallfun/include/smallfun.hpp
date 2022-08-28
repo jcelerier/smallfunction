@@ -264,7 +264,7 @@ public:
     };
     vtbl_call = [] (void* self, Xs... xs) -> R
     {
-      return (*reinterpret_cast<F*>(self))(xs...);
+      return (*reinterpret_cast<T*>(self))(xs...);
     };
     vtbl_dest = [] (void* self) noexcept
     {
@@ -342,25 +342,26 @@ public:
   template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
   function(F&& f) noexcept(std::is_nothrow_move_constructible_v<std::decay_t<F>>)
   {
-    using T = std::remove_cv_t<std::remove_reference_t<F>>;
-    static_assert(alignof(T) <= Align, "alignment must be increased");
-    static_assert(sizeof(T) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
-    new (m_memory) T{std::forward<F>(f)};
+    using NoRef = std::remove_reference_t<F>;
+    using NoCVRef = std::remove_cv_t<NoRef>;
+    static_assert(alignof(NoRef) <= Align, "alignment must be increased");
+    static_assert(sizeof(NoRef) <= Size * SMALLFUN_SIZE_MULTIPLIER, "argument too large for SmallFun");
+    new (m_memory) NoCVRef{std::forward<F>(f)};
     vtbl_copy = [] (void* self, void* memory)
     {
-        new (memory) T{*reinterpret_cast<T*>(self)};
+        new (memory) NoCVRef{*reinterpret_cast<NoCVRef*>(self)};
     };
     vtbl_move = [] (void* self, void* memory)
     {
-      new (memory) T{std::move(*reinterpret_cast<T*>(self))};
+      new (memory) NoCVRef{std::move(*reinterpret_cast<NoCVRef*>(self))};
     };
     vtbl_call = [] (void* self, Xs... xs) -> R
     {
-      return (*reinterpret_cast<F*>(self))(xs...);
+      return (*reinterpret_cast<NoCVRef*>(self))(xs...);
     };
     vtbl_dest = [] (void* self) noexcept
     {
-      (*reinterpret_cast<T*>(self)).~T();
+      (*reinterpret_cast<NoCVRef*>(self)).~NoCVRef();
     };
   }
 
