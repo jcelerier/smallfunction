@@ -29,7 +29,10 @@ enum class Methods
   Copy, Move, Both
 };
 
-template<class Signature, std::size_t Size = 64, std::size_t Align = std::max(alignof(std::intptr_t), alignof(double)), Methods methods = Methods::Copy>
+constexpr std::size_t DefaultSize = 64;
+constexpr std::size_t DefaultAlign = std::max(alignof(std::intptr_t), alignof(double));
+
+template<class Signature, std::size_t Size = DefaultSize, std::size_t Align = DefaultAlign, Methods methods = Methods::Both>
 class function;
 
 
@@ -153,6 +156,7 @@ public:
     return vtbl_call((void*)m_memory, std::forward<Ys>(ys)...);
   }
 
+  operator bool() const noexcept { return bool(vtbl_call); }
   bool allocated() const noexcept { return bool(vtbl_call); }
 private:
   void clean() noexcept
@@ -290,6 +294,7 @@ public:
     return vtbl_call((void*)m_memory, std::forward<Ys>(ys)...);
   }
 
+  operator bool() const noexcept { return bool(vtbl_call); }
   bool allocated() const noexcept { return bool(vtbl_call); }
 private:
   void clean() noexcept
@@ -460,6 +465,7 @@ public:
     return vtbl_call((void*)m_memory, std::forward<Ys>(ys)...);
   }
 
+  operator bool() const noexcept { return bool(vtbl_call); }
   bool allocated() const noexcept { return bool(vtbl_call); }
 
 private:
