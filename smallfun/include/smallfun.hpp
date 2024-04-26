@@ -1,10 +1,9 @@
 #ifndef SMALLFUNCTION_SMALLFUNCTION_HPP
 #define SMALLFUNCTION_SMALLFUNCTION_HPP
 
-#include <type_traits>
 #include <cinttypes>
+#include <type_traits>
 #include <utility>
-#include <cmath>
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer) || __has_feature(memory_sanitizer)
@@ -30,7 +29,9 @@ enum class Methods
 };
 
 constexpr std::size_t DefaultSize = 64;
-constexpr std::size_t DefaultAlign = std::max(alignof(std::intptr_t), alignof(double));
+constexpr std::size_t DefaultAlign = alignof(std::intptr_t) > alignof(double)
+                                         ? alignof(std::intptr_t)
+                                         : alignof(double);
 
 template<class Signature, std::size_t Size = DefaultSize, std::size_t Align = DefaultAlign, Methods methods = Methods::Both>
 class function;
