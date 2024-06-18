@@ -56,6 +56,9 @@ class function<R(Xs...), Size, Align, Methods::Copy>
   dest_operator vtbl_dest;
 
 public:
+  static constexpr std::size_t max_storage = Size * SMALLFUN_SIZE_MULTIPLIER;
+  static constexpr std::size_t alignment = Align;
+
   function() noexcept = default;
 
   template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
@@ -197,6 +200,9 @@ class function<R(Xs...), Size, Align, Methods::Move>
   dest_operator vtbl_dest;
 
 public:
+  static constexpr std::size_t max_storage = Size * SMALLFUN_SIZE_MULTIPLIER;
+  static constexpr std::size_t alignment = Align;
+
   function() noexcept = default;
 
   template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
@@ -338,6 +344,9 @@ class function<R(Xs...), Size, Align, Methods::Both>
   dest_operator vtbl_dest;
 
 public:
+  static constexpr std::size_t max_storage = Size * SMALLFUN_SIZE_MULTIPLIER;
+  static constexpr std::size_t alignment = Align;
+
   function() noexcept = default;
 
   template<class F, typename = std::enable_if_t<not_function<std::remove_cv_t<std::remove_reference_t<F>>>::value>>
